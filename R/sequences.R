@@ -7,15 +7,10 @@
 #' @param x a \link{tokens} object
 #' @param min_count minimum frequency of sequences for which parameters are 
 #'   estimated
-#' @param min_size minimum length of sequences which are collected  
-#' @param max_size maximum length of sequences which are collected
+#' @param size lengths sequences to be collected  
 #' @param method default is "unigram" and option is "all_subtuples"
 #' @param smoothing default is 0.5
-#' @param nested if \code{TRUE}, collect all the subsequences of a longer
-#'   sequence as separate entities. e.g. in a sequence of capitalized words
-#'   "United States Congress", "States Congress" is considered as a subsequence.
-#'   But "United States" is not a subsequence because it is followed by
-#'   "Congress".
+#' @param nested not used
 #' @keywords collocations internal
 #' @author Kohei Watanabe and Haiyan Wang
 #' @references Blaheta, D., & Johnson, M. (2001). 
@@ -23,7 +18,7 @@
 #'    learning of multi-word verbs}. Presented at the ACLEACL Workshop on the 
 #'   Computational Extraction, Analysis and Exploitation of Collocations.
 #' @examples 
-#' toks <- tokens(corpus_segment(data_corpus_inaugural, what = "sentence"), remove_punct=TRUE)
+#' toks <- tokens(data_corpus_inaugural, remove_punct = FALSE)
 #' toks <- tokens_select(toks, stopwords("english"), "remove", padding = TRUE)
 #' # extracting multi-part proper nouns (capitalized terms)
 #' toks <- tokens_select(toks, "^([A-Z][a-z\\-]{2,})", valuetype="regex", 
@@ -32,13 +27,12 @@
 #' seqs <- sequences(toks)
 #' head(seqs, 10)
 #' # to return only trigrams
-#' seqs <- sequences(toks, min_size = 3, max_size = 3)
+#' seqs <- sequences(toks, size = 2:3)
 #' head(seqs, 10)
 #' @export
 sequences <- function(x, 
                        min_count = 2,
-                       min_size = 2,
-                       max_size = 5,
+                       size = 2,
                        method = c("unigram", "all_subtuples"),
                        smoothing = 0.5,
                        nested = TRUE) {
@@ -52,17 +46,17 @@ sequences <- function(x,
 #' @export
 sequences.tokens <- function(x,
                               min_count = 2,
-                              min_size = 2,
-                              max_size = 5,
+                              size = 2,
                               method = c("unigram", "all_subtuples"),
                               smoothing = 0.5,
                               nested = TRUE) {
     
     attrs_org <- attributes(x)
-    methodtype = match.arg(method)
+    method = match.arg(method)
     types <- types(x)
     
-    result <- qatd_cpp_sequences(x, types, min_count, min_size, max_size, methodtype, smoothing, nested)
+    result <- qatd_cpp_sequences(x, types, min_count, size, method, smoothing, nested)
+
     result <- result[result$count >= min_count,]
     result$z <- result$lambda / result$sigma
     result$p <- 1 - stats::pnorm(result$z)

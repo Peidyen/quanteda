@@ -1,5 +1,5 @@
-//#include "dev.h"
 #include "quanteda.h"
+#include "dev.h"
 #include <bitset>
 using namespace quanteda;
 
@@ -76,40 +76,66 @@ double compute_dice(const std::vector<double> &counts){
 }
 
 //************************//
-void counts(Text text,
+// void counts(Text text,
+//            MapNgrams &counts_seq,
+//            const unsigned int &len_min,
+//            const unsigned int &len_max,
+//            const bool &nested){
+//     
+//     if (text.size() == 0) return; // do nothing with empty text
+//     text.push_back(0); // add padding to include last words
+//     Ngram tokens_seq;
+//     tokens_seq.reserve(text.size());
+//     
+//     // Collect sequence of specified types
+//     std::size_t len_text = text.size();
+//     for (std::size_t i = 0; i < len_text; i++) {
+//         for (std::size_t j = i; j < len_text; j++) {
+//             //Rcout << i << " " << j << "\n";
+//             unsigned int token = text[j];
+//             bool is_in = true;
+//             if (token == 0 || j - i >= len_max) {
+//                 is_in = false;
+//             } 
+//             
+//             if (is_in) {
+//                 //Rcout << "Match: " << token << "\n";
+//                 tokens_seq.push_back(token);
+//             } else {
+//                 //Rcout << "Not match: " <<  token << "\n";
+//                 //only collect sequences that the size of it >= len_min
+//                 if (tokens_seq.size() >= len_min) {  
+//                     counts_seq[tokens_seq]++;
+//                 }
+//                 tokens_seq.clear();
+//                 if (!nested) i = j; // jump if nested is false
+//                 break;
+//             }
+//         }
+//     }
+// }
+
+void counts(Text text, 
            MapNgrams &counts_seq,
-           const unsigned int &len_min,
-           const unsigned int &len_max,
+           const std::vector<unsigned int> &sizes,
            const bool &nested){
     
     if (text.size() == 0) return; // do nothing with empty text
-    text.push_back(0); // add padding to include last words
     Ngram tokens_seq;
     tokens_seq.reserve(text.size());
     
     // Collect sequence of specified types
     std::size_t len_text = text.size();
     for (std::size_t i = 0; i < len_text; i++) {
-        for (std::size_t j = i; j < len_text; j++) {
-            //Rcout << i << " " << j << "\n";
-            unsigned int token = text[j];
-            bool is_in = true;
-            if (token == 0 || j - i >= len_max) {
-                is_in = false;
-            } 
-            
-            if (is_in) {
-                //Rcout << "Match: " << token << "\n";
-                tokens_seq.push_back(token);
-            } else {
-                //Rcout << "Not match: " <<  token << "\n";
-                //only collect sequences that the size of it >= len_min
-                if (tokens_seq.size() >= len_min) {  
+        if (text[i] == 0) continue;
+        for (std::size_t size : sizes) {
+            //Rcout << "Size" << size << "\n";
+            if (size > 1 && i + size < len_text) {
+                Text tokens_seq(text.begin() + i, text.begin() + i + size);
+                if(std::find(tokens_seq.begin(), tokens_seq.end(), 0) == tokens_seq.end()) {
+                    //dev::print_ngram(tokens_seq);
                     counts_seq[tokens_seq]++;
                 }
-                tokens_seq.clear();
-                if (!nested) i = j; // jump if nested is false
-                break;
             }
         }
     }
@@ -119,17 +145,15 @@ struct counts_mt : public Worker{
     
     Texts texts;
     MapNgrams &counts_seq;
-    const unsigned int &len_min;
-    const unsigned int &len_max;
+    const std::vector<unsigned int> &sizes;
     const bool &nested;
     
-    counts_mt(Texts texts_, MapNgrams &counts_seq_, const unsigned int &len_min_,
-             const unsigned int &len_max_, const bool &nested_):
-        texts(texts_), counts_seq(counts_seq_), len_min(len_min_), len_max(len_max_), nested(nested_) {}
+    counts_mt(Texts texts_, MapNgrams &counts_seq_, const std::vector<unsigned int> &sizes_, const bool &nested_):
+              texts(texts_), counts_seq(counts_seq_), sizes(sizes_), nested(nested_) {}
     
     void operator()(std::size_t begin, std::size_t end){
         for (std::size_t h = begin; h < end; h++){
-            counts(texts[h], counts_seq, len_min, len_max, nested);
+            counts(texts[h], counts_seq, sizes, nested);
         }
     }
 };
@@ -261,27 +285,27 @@ struct estimates_mt : public Worker{
 DataFrame qatd_cpp_sequences(const List &texts_,
                              const CharacterVector &types_,
                              const unsigned int count_min,
-                             unsigned int len_min,
-                             unsigned int len_max,
-                             const String &method,
+                             const IntegerVector sizes_,
+                             const String method,
                              const double smoothing,
-                             bool nested){
+                             const bool nested){
     
-    Texts texts = as<Texts>(texts_);
+    Texts texts = as< Texts >(texts_);
+    std::vector<unsigned int> sizes = as< std::vector<unsigned int> >(sizes_);
 
     // Collect all sequences of specified words
     MapNgrams counts_seq;
-    //dev::Timer timer;
-    //dev::start_timer("Count", timer);
+    dev::Timer timer;
+    dev::start_timer("Count", timer);
 #if QUANTEDA_USE_TBB
-    counts_mt count_mt(texts, counts_seq, len_min, len_max, nested);
+    counts_mt count_mt(texts, counts_seq, sizes, nested);
     parallelFor(0, texts.size(), count_mt);
 #else
     for (std::size_t h = 0; h < texts.size(); h++) {
-        counts(texts[h], counts_seq, len_min, len_max, nested);
+        counts(texts[h], counts_seq, sizes, nested);
     }
 #endif
-    //dev::stop_timer("Count", timer);
+    dev::stop_timer("Count", timer);
     
     // Separate map keys and values
     std::size_t len = counts_seq.size();
@@ -308,7 +332,8 @@ DataFrame qatd_cpp_sequences(const List &texts_,
     DoubleParams pmi(len);
     DoubleParams logratio(len);
     DoubleParams chi2(len);
-    //dev::start_timer("Estimate", timer);
+    
+    dev::start_timer("Estimate", timer);
 #if QUANTEDA_USE_TBB
     estimates_mt estimate_mt(seqs, cs, sgma, lmda, dice, pmi, logratio, chi2, method, count_min, total_counts, smoothing);
     parallelFor(0, seqs.size(), estimate_mt);
@@ -317,7 +342,7 @@ DataFrame qatd_cpp_sequences(const List &texts_,
         estimates(i, seqs, cs, sgma, lmda, dice, pmi, logratio, chi2, method, count_min, total_counts, smoothing);
     }
 #endif
-    //dev::stop_timer("Estimate", timer);
+    dev::stop_timer("Estimate", timer);
     
     // Convert sequences from integer to character
     CharacterVector seqs_(seqs.size());
@@ -352,7 +377,7 @@ toks <- tokens_select(toks, stopwords("english"), "remove", padding = TRUE)
 #out4 <- qatd_cpp_sequences(toks, types, 1, 2, 3, "unigram",TRUE)
 # out2$z <- out2$lambda / out2$sigma
 # out2$p <- 1 - stats::pnorm(out2$z)
-toks <- tokens('capital other capital gains other capital word2 other gains capital')
+#toks <- tokens('capital other capital gains other capital word2 other gains capital')
 types <- unique(as.character(toks))
-out2 <- qatd_cpp_sequences(toks, types, 1, 2, 2, "unigram",TRUE)
+out <- qatd_cpp_sequences(toks, types, 10, 2:3, "unigram", 0, TRUE)
 */

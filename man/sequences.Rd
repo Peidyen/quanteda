@@ -5,8 +5,8 @@
 \alias{is.sequences}
 \title{Find variable-length collocations}
 \usage{
-sequences(x, min_count = 2, min_size = 2, max_size = 5,
-  method = c("unigram", "all_subtuples"), smoothing = 0.5, nested = TRUE)
+sequences(x, min_count = 2, size = 2, method = c("unigram",
+  "all_subtuples"), smoothing = 0.5, nested = TRUE)
 
 is.sequences(x)
 }
@@ -16,19 +16,13 @@ is.sequences(x)
 \item{min_count}{minimum frequency of sequences for which parameters are 
 estimated}
 
-\item{min_size}{minimum length of sequences which are collected}
-
-\item{max_size}{maximum length of sequences which are collected}
+\item{size}{lengths sequences to be collected}
 
 \item{method}{default is "unigram" and option is "all_subtuples"}
 
 \item{smoothing}{default is 0.5}
 
-\item{nested}{if \code{TRUE}, collect all the subsequences of a longer
-sequence as separate entities. e.g. in a sequence of capitalized words
-"United States Congress", "States Congress" is considered as a subsequence.
-But "United States" is not a subsequence because it is followed by
-"Congress".}
+\item{nested}{not used}
 }
 \value{
 \code{sequences} returns \code{TRUE} if the object is of class
@@ -41,7 +35,7 @@ by chance.  The algorithm is based on Blaheta and Johnson's (2001)
 "Unsupervised Learning of Multi-Word Verbs".
 }
 \examples{
-toks <- tokens(corpus_segment(data_corpus_inaugural, what = "sentence"), remove_punct=TRUE)
+toks <- tokens(data_corpus_inaugural, remove_punct = FALSE)
 toks <- tokens_select(toks, stopwords("english"), "remove", padding = TRUE)
 # extracting multi-part proper nouns (capitalized terms)
 toks <- tokens_select(toks, "^([A-Z][a-z\\\\-]{2,})", valuetype="regex", 
@@ -50,7 +44,7 @@ toks <- tokens_select(toks, "^([A-Z][a-z\\\\-]{2,})", valuetype="regex",
 seqs <- sequences(toks)
 head(seqs, 10)
 # to return only trigrams
-seqs <- sequences(toks, min_size = 3, max_size = 3)
+seqs <- sequences(toks, size = 2:3)
 head(seqs, 10)
 }
 \references{
