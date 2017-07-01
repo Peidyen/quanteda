@@ -29,6 +29,7 @@ namespace quanteda{
     
 #if QUANTEDA_USE_TBB
     typedef tbb::atomic<int> IntParam;
+    typedef tbb::atomic<unsigned int> UintParam;
     typedef tbb::atomic<long> LongParam;
     typedef tbb::atomic<double> DoubleParam;
     typedef tbb::concurrent_vector<int> IntParams;
@@ -37,6 +38,7 @@ namespace quanteda{
     typedef tbb::spin_mutex Mutex;
 #else
     typedef int IntParam;
+    typedef unsigned int UintParam;
     typedef long LongParam;
     typedef double DoubleParam;
     typedef std::vector<int> IntParams;
@@ -151,15 +153,15 @@ namespace quanteda{
 
 #if QUANTEDA_USE_TBB
     typedef tbb::atomic<unsigned int> IdNgram;
-    typedef tbb::concurrent_unordered_multimap<Ngram, unsigned int, hash_ngram, equal_ngram> MultiMapNgrams;
-    typedef tbb::concurrent_unordered_map<Ngram, unsigned int, hash_ngram, equal_ngram> MapNgrams;
+    typedef tbb::concurrent_unordered_multimap<Ngram, UintParam, hash_ngram, equal_ngram> MultiMapNgrams;
+    typedef tbb::concurrent_unordered_map<Ngram, UintParam, hash_ngram, equal_ngram> MapNgrams;
     typedef tbb::concurrent_unordered_set<Ngram, hash_ngram, equal_ngram> SetNgrams;
     typedef tbb::concurrent_vector<Ngram> VecNgrams;
     typedef tbb::concurrent_unordered_set<unsigned int> SetUnigrams;
 #else
     typedef unsigned int IdNgram;
-    typedef std::unordered_multimap<Ngram, unsigned int, hash_ngram, equal_ngram> MultiMapNgrams;
-    typedef std::unordered_map<Ngram, unsigned int, hash_ngram, equal_ngram> MapNgrams;
+    typedef std::unordered_multimap<Ngram, UintParam, hash_ngram, equal_ngram> MultiMapNgrams;
+    typedef std::unordered_map<Ngram, UintParam, hash_ngram, equal_ngram> MapNgrams;
     typedef std::unordered_set<Ngram, hash_ngram, equal_ngram> SetNgrams;
     typedef std::vector<Ngram> VecNgrams;
     typedef std::unordered_set<unsigned int> SetUnigrams;

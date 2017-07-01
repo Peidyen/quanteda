@@ -139,6 +139,33 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// qatd_cpp_count1
+DataFrame qatd_cpp_count1(const List& texts_, const CharacterVector& types_, const IntegerVector sizes_, const bool nested);
+RcppExport SEXP quanteda_qatd_cpp_count1(SEXP texts_SEXP, SEXP types_SEXP, SEXP sizes_SEXP, SEXP nestedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const List& >::type texts_(texts_SEXP);
+    Rcpp::traits::input_parameter< const CharacterVector& >::type types_(types_SEXP);
+    Rcpp::traits::input_parameter< const IntegerVector >::type sizes_(sizes_SEXP);
+    Rcpp::traits::input_parameter< const bool >::type nested(nestedSEXP);
+    rcpp_result_gen = Rcpp::wrap(qatd_cpp_count1(texts_, types_, sizes_, nested));
+    return rcpp_result_gen;
+END_RCPP
+}
+// qatd_cpp_count2
+DataFrame qatd_cpp_count2(const List& texts_, const CharacterVector& types_, const IntegerVector sizes_);
+RcppExport SEXP quanteda_qatd_cpp_count2(SEXP texts_SEXP, SEXP types_SEXP, SEXP sizes_SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const List& >::type texts_(texts_SEXP);
+    Rcpp::traits::input_parameter< const CharacterVector& >::type types_(types_SEXP);
+    Rcpp::traits::input_parameter< const IntegerVector >::type sizes_(sizes_SEXP);
+    rcpp_result_gen = Rcpp::wrap(qatd_cpp_count2(texts_, types_, sizes_));
+    return rcpp_result_gen;
+END_RCPP
+}
 // qatd_cpp_sequences
 DataFrame qatd_cpp_sequences(const List& texts_, const CharacterVector& types_, const unsigned int count_min, const IntegerVector sizes_, const String& method, const double smoothing, bool nested);
 RcppExport SEXP quanteda_qatd_cpp_sequences(SEXP texts_SEXP, SEXP types_SEXP, SEXP count_minSEXP, SEXP sizes_SEXP, SEXP methodSEXP, SEXP smoothingSEXP, SEXP nestedSEXP) {
