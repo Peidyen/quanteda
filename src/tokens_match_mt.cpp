@@ -119,8 +119,8 @@ toks <- list(rep(1:10, 1), rep(5:15, 1))
 #dict <- list(c(1, 2), c(5, 6), 10, 15, 20)
 dict <- list(c(1, 2), c(1, 2, 3))
 id <- rep(1, length(dict)) * 100
-qatd_cpp_tokens_match(toks, dict, id, FALSE)
-qatd_cpp_tokens_match(toks, dict, id, TRUE)
+qatd_cpp_tokens_match(toks, letters, dict, id, FALSE)
+qatd_cpp_tokens_match(toks, letters, dict, id, TRUE)
 
 
 

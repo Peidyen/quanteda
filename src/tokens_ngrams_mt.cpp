@@ -184,8 +184,8 @@ List qatd_cpp_tokens_ngrams(const List &texts_,
     
     // Register both ngram (key) and unigram (value) IDs in a hash table
     MapNgrams map_ngram;
-    map_ngram.max_load_factor(GLOBAL_NGRAMS_MAX_LOAD_FACTOR);
-    
+    //map_ngram.max_load_factor(GLOBAL_NGRAMS_MAX_LOAD_FACTOR);
+
     //dev::Timer timer;
     //dev::start_timer("Ngram generation", timer);
 #if QUANTEDA_USE_TBB
@@ -199,7 +199,7 @@ List qatd_cpp_tokens_ngrams(const List &texts_,
     }
 #endif
      //dev::stop_timer("Ngram generation", timer);
-    
+     
     // Extract only keys in order of the id
     VecNgrams keys_ngram(id_ngram - 1);
     for (std::pair<Ngram, unsigned int> it : map_ngram) {
@@ -233,10 +233,11 @@ out <- qatd_cpp_tokens_ngrams(tok, attr(tok, 'types'), "-", 2, 1)
 str(out)
 
 tok2 <- quanteda::tokens(data_corpus_inaugural)
-microbenchmark::microbenchmark(
-    qatd_cpp_tokens_ngrams(tok2, attr(tok2, 'types'), "-", 2, 1),
-    tokenizers::tokenize_ngrams(texts(data_corpus_inaugural))
-)
+qatd_cpp_tokens_ngrams(tok2, attr(tok2, 'types'), "-", 2, 1)
+# microbenchmark::microbenchmark(
+#     qatd_cpp_tokens_ngrams(tok2, attr(tok2, 'types'), "-", 2, 1),
+#     tokenizers::tokenize_ngrams(texts(data_corpus_inaugural))
+# )
 
 
 

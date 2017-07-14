@@ -77,7 +77,7 @@ double compute_dice(const std::vector<double> &counts){
 
 //************************//
 void counts(Text text,
-           MapNgrams &counts_seq,
+           CountNgrams &counts_seq,
            const unsigned int &size){
 
     
@@ -99,7 +99,7 @@ void counts(Text text,
 
 
 void counts(Text text, 
-            MapNgrams &counts_seq,
+            CountNgrams &counts_seq,
             const std::vector<unsigned int> &sizes,
             const bool &nested){
     
@@ -128,10 +128,10 @@ void counts(Text text,
 struct counts_mt : public Worker{
     
     Texts texts;
-    MapNgrams &counts_seq;
+    CountNgrams &counts_seq;
     const unsigned int &len;
 
-    counts_mt(Texts texts_, MapNgrams &counts_seq_, const unsigned int &len_):
+    counts_mt(Texts texts_, CountNgrams &counts_seq_, const unsigned int &len_):
         texts(texts_), counts_seq(counts_seq_), len(len_){}
     
     void operator()(std::size_t begin, std::size_t end){
@@ -357,7 +357,7 @@ DataFrame qatd_cpp_sequences(const List &texts_,
     for(unsigned int m = 0; m < sizes.size(); m++){
         unsigned int mw_len = sizes[m];
         // Collect all sequences of specified words
-        MapNgrams counts_seq;
+        CountNgrams counts_seq;
         //dev::Timer timer;
         //dev::start_timer("Count", timer);
 #if QUANTEDA_USE_TBB

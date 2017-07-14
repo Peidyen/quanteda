@@ -118,8 +118,10 @@ List qatd_cpp_tokens_lookup(const List &texts_,
     Ngrams keys = Rcpp::as<Ngrams>(keys_);
     std::vector<unsigned int> ids = Rcpp::as< std::vector<unsigned int> >(ids_);
     std::vector<std::size_t> spans(keys.size());
-    for (size_t g = 0; g < keys.size(); g++) {
-        map_keys.insert(std::pair<Ngram, IdNgram>(keys[g], ids[g]));
+    for (size_t g = 0; g < std::min(keys.size(), ids.size()); g++) {
+        map_keys.insert(std::pair<Ngram, unsigned int>(keys[g], ids[g]));
+        //dev::print_ngram(keys[g]);
+        //Rcout << g << "\n";
         spans[g] = keys[g].size();
     }
     sort(spans.begin(), spans.end());

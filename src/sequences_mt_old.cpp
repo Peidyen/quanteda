@@ -65,7 +65,7 @@ double lambda(const std::vector<long> &counts){
 
 void count(Text text, 
            const SetUnigrams &set_words, 
-           MapNgrams &counts_seq,
+           CountNgrams &counts_seq,
            const unsigned int &len_max,
            const bool &nested){
     
@@ -106,12 +106,12 @@ struct count_mt : public Worker{
     
     Texts texts;
     const SetUnigrams &set_words;
-    MapNgrams &counts_seq;
+    CountNgrams &counts_seq;
     const unsigned int &len_max;
     const bool &nested;
     
         
-    count_mt(Texts texts_, SetUnigrams &set_words_, MapNgrams &counts_seq_, 
+    count_mt(Texts texts_, SetUnigrams &set_words_, CountNgrams &counts_seq_, 
              const unsigned int &len_max_, const bool &nested_):
              texts(texts_), set_words(set_words_), counts_seq(counts_seq_), len_max(len_max_), nested(nested_) {}
     
@@ -204,7 +204,7 @@ DataFrame qatd_cpp_sequences_old(const List &texts_,
     SetUnigrams set_words (words.begin(), words.end());
     
     // Collect all sequences of specified words
-    MapNgrams counts_seq;
+    CountNgrams counts_seq;
     //dev::Timer timer;
     //dev::start_timer("Count", timer);
 #if QUANTEDA_USE_TBB

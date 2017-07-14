@@ -155,14 +155,16 @@ List qatd_cpp_tokens_select(const List &texts_,
 }
 
 /***R
-toks <- list(rep(1:10, 1))
-#toks <- list(rep(1:10, 1), rep(5:15, 1))
+#toks <- list(rep(1:10, 1))
+toks <- list(rep(1:10, 1), rep(5:15, 1))
 #dict <- as.list(1:100000)
-#dict <- list(c(1, 2), c(5, 6), 10, 15, 20)
-dict <- list(c(99))
-qatd_cpp_tokens_select(toks, letters, dict, 1, TRUE)
+dict <- list(c(1, 2), c(5, 6), 10, 15, 20, c(NULL, 1))
+#dict <- list(c(99))
+microbenchmark::microbenchmark(
+qatd_cpp_tokens_select(toks, letters, list(NULL), 2, TRUE)
+)
 
-
+qatd_cpp_tokens_select(toks, letters, NA, 1, TRUE)
 
 
 */
