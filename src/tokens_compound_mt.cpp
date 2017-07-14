@@ -174,25 +174,32 @@ List qatd_cpp_tokens_compound(const List &texts_,
 
     unsigned int id_last = types.size();
     #if QUANTEDA_USE_TBB
-    IdNgram id_comp(id_last);
+    IdNgram id_comp(id_last + 1);
     #else
-    IdNgram id_comp = id_last;
+    IdNgram id_comp = id_last + 1;
     #endif
-
+    
+    dev::Timer timer;
+    dev::start_timer("Make map", timer);
+    Rcout << "Size:" << comps_.size() << "\n";
     MapNgrams map_comps;
     std::vector<std::size_t> spans(comps_.size());
     for (unsigned int g = 0; g < (unsigned int)comps_.size(); g++) {
         if (has_na(comps_[g])) continue;
-        Ngram comp = comps_[g];
-        map_comps[comp] = ++id_comp;
+        Ngram comp = Rcpp::as<Ngram>(comps_[g]);
+        auto it = map_comps.insert(std::pair<Ngram, IdNgram>(comp, ++id_comp));
+        //auto it = map_comps.insert(std::pair<Ngram, IdNgram>(comp, id_comp.fetch_and_increment()));
         spans[g] = comp.size();
     }
+    dev::stop_timer("Make map", timer);
+    
+    dev::start_timer("Get spans", timer);
     sort(spans.begin(), spans.end());
     spans.erase(unique(spans.begin(), spans.end()), spans.end());
     std::reverse(std::begin(spans), std::end(spans));
+    dev::stop_timer("Get spans", timer);
     
-    // dev::Timer timer;
-    // dev::start_timer("Token compound", timer);
+    dev::start_timer("Token compound", timer);
 #if QUANTEDA_USE_TBB
     compound_mt compound_mt(texts, spans, join, map_comps, id_comp);
     parallelFor(0, texts.size(), compound_mt);
@@ -205,6 +212,8 @@ List qatd_cpp_tokens_compound(const List &texts_,
         }
     }
 #endif
+    
+    dev::stop_timer("Token compound", timer);
     
     // Extract only keys in order of the ID
     VecNgrams ids_comp(id_comp - id_last);
@@ -228,7 +237,7 @@ List qatd_cpp_tokens_compound(const List &texts_,
     }
     types.insert(types.end(), types_comp.begin(), types_comp.end());
     
-    // dev::stop_timer("Token compound", timer);
+    
     return recompile(texts, types, true, true, is_encoded(delim_) || is_encoded(types_));
 }
 

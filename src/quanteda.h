@@ -155,25 +155,25 @@ namespace quanteda{
 
 #if QUANTEDA_USE_TBB
     typedef tbb::atomic<unsigned int> IdNgram;
-    typedef tbb::concurrent_unordered_multimap<Ngram, UintParam, hash_ngram, equal_ngram> MultiMapNgrams;
-    typedef tbb::concurrent_unordered_map<Ngram, UintParam, hash_ngram, equal_ngram> MapNgrams;
+    typedef tbb::concurrent_unordered_multimap<Ngram, IdNgram, hash_ngram, equal_ngram> MultiMapNgrams;
+    typedef tbb::concurrent_unordered_map<Ngram, IdNgram, hash_ngram, equal_ngram> MapNgrams;
     typedef tbb::concurrent_unordered_set<Ngram, hash_ngram, equal_ngram> SetNgrams;
     typedef tbb::concurrent_vector<Ngram> VecNgrams;
-    typedef tbb::concurrent_unordered_set<unsigned int> SetUnigrams;
+    typedef tbb::concurrent_unordered_set<IdNgram> SetUnigrams;
 #else
     typedef unsigned int IdNgram;
-    typedef std::unordered_multimap<Ngram, unsigned int, hash_ngram, equal_ngram> MultiMapNgrams;
-    typedef std::unordered_map<Ngram, unsigned int, hash_ngram, equal_ngram> MapNgrams;
+    typedef std::unordered_multimap<Ngram, IdNgram, hash_ngram, equal_ngram> MultiMapNgrams;
+    typedef std::unordered_map<Ngram, IdNgram, hash_ngram, equal_ngram> MapNgrams;
     typedef std::unordered_set<Ngram, hash_ngram, equal_ngram> SetNgrams;
     typedef std::vector<Ngram> VecNgrams;
-    typedef std::unordered_set<unsigned int> SetUnigrams;
+    typedef std::unordered_set<IdNgram> SetUnigrams;
 #endif    
 
     inline std::vector<std::size_t> register_ngrams(List words_, SetNgrams &set_words) {
         std::vector<std::size_t> spans(words_.size());
         for (unsigned int g = 0; g < (unsigned int)words_.size(); g++) {
             if (has_na(words_[g])) continue;
-            Ngram word = words_[g];
+            Ngram word = Rcpp::as<Ngram>(words_[g]);
             set_words.insert(word);
             spans[g] = word.size();
         }
@@ -187,8 +187,8 @@ namespace quanteda{
         std::vector<std::size_t> spans(words_.size());
         for (unsigned int g = 0; g < (unsigned int)words_.size(); g++) {
             if (has_na(words_[g])) continue;
-            Ngram word = words_[g];
-            map_words[word] = ids_[g];
+            Ngram word = Rcpp::as<Ngram>(words_[g]);
+            map_words.insert(std::pair<Ngram, IdNgram>(word, ids_[g]));
             spans[g] = word.size();
         }
         sort(spans.begin(), spans.end());
