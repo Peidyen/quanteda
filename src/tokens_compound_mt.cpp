@@ -61,7 +61,7 @@ Text join_comp(Text tokens,
 #if QUANTEDA_USE_TBB
                 id_mutex.lock();
 #endif
-                UintParam &id = map_comps[tokens_seq];
+                IdNgram &id = map_comps[tokens_seq];
                 if (!id) id = ++id_comp; // assign new ID if not exisits
                 //Rcout << "Compund "<< id << ": ";
                 //dev::print_ngram(tokens_seq);
@@ -190,35 +190,22 @@ List qatd_cpp_tokens_compound(const List &texts_,
     IdNgram id_comp = id_last;
     #endif
     
-    dev::Timer timer;
-    dev::start_timer("Make map", timer);
-    Rcout << "Size:" << comps_.size() << "\n";
+    // dev::Timer timer;
+
     MapNgrams map_comps;
+    map_comps.max_load_factor(GLOBAL_PATTERNS_MAX_LOAD_FACTOR);
     
     Ngrams comps = Rcpp::as<Ngrams>(comps_);
-    
-    std::vector<std::size_t> spans(comps_.size());
-    Ngram comp;
-    //for (unsigned int g = 0; g < (unsigned int)comps_.size(); g++) {
+    std::vector<std::size_t> spans(comps.size());
     for (size_t g = 0; g < comps.size(); g++) {
-        //if (has_na(comps_[g])) continue;
-        //Ngram comp = Rcpp::as<Ngram>(comps_[g]);
-        //Ngram comp = comps[g];
-        comp = comps[g];
-        //ngram_id2(comp, map_comps, id_comp);
-        auto it = map_comps.insert(std::pair<Ngram, IdNgram>(comp, ++id_comp));
-        //auto it = map_comps.insert(std::pair<Ngram, IdNgram>(comp, id_comp.fetch_and_increment()));
-        spans[g] = comp.size();
+        map_comps.insert(std::pair<Ngram, IdNgram>(comps[g], ++id_comp));
+        spans[g] = comps[g].size();
     }
-    dev::stop_timer("Make map", timer);
-    
-    dev::start_timer("Get spans", timer);
     sort(spans.begin(), spans.end());
     spans.erase(unique(spans.begin(), spans.end()), spans.end());
     std::reverse(std::begin(spans), std::end(spans));
-    dev::stop_timer("Get spans", timer);
     
-    dev::start_timer("Token compound", timer);
+    // dev::start_timer("Token compound", timer);
 #if QUANTEDA_USE_TBB
     compound_mt compound_mt(texts, spans, join, map_comps, id_comp);
     parallelFor(0, texts.size(), compound_mt);
@@ -232,7 +219,7 @@ List qatd_cpp_tokens_compound(const List &texts_,
     }
 #endif
     
-    dev::stop_timer("Token compound", timer);
+    // dev::stop_timer("Token compound", timer);
     
     // Extract only keys in order of the ID
     VecNgrams ids_comp(id_comp - id_last);

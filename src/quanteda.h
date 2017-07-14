@@ -16,12 +16,16 @@ using namespace std;
 
 #define CLANG_VERSION (__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__)
 
-// compiler has to be newer than clang 3.30 or gcc 4.8.1
+// compiler has to be newer than clang 3.3.0 or gcc 4.8.1
 #if RCPP_PARALLEL_USE_TBB && (CLANG_VERSION >= 30300 || GCC_VERSION >= 40801) 
 #define QUANTEDA_USE_TBB true // tbb.h is loaded automatically by RcppParallel.h
 #else
 #define QUANTEDA_USE_TBB false
 #endif
+
+// setting for unordered_map and unordered_set 
+const float GLOBAL_PATTERNS_MAX_LOAD_FACTOR = 0.1;
+const float GLOBAL_NGRAMS_MAX_LOAD_FACTOR = 0.5;
 
 namespace quanteda{
     
@@ -169,13 +173,14 @@ namespace quanteda{
     typedef std::unordered_set<IdNgram> SetUnigrams;
 #endif    
 
-    inline std::vector<std::size_t> register_ngrams(List words_, SetNgrams &set_words) {
-        std::vector<std::size_t> spans(words_.size());
-        for (unsigned int g = 0; g < (unsigned int)words_.size(); g++) {
-            if (has_na(words_[g])) continue;
-            Ngram word = Rcpp::as<Ngram>(words_[g]);
-            set_words.insert(word);
-            spans[g] = word.size();
+    inline std::vector<std::size_t> register_ngrams(List patterns_, SetNgrams &set) {
+        
+        set.max_load_factor(GLOBAL_PATTERNS_MAX_LOAD_FACTOR);
+        Ngrams patterns = Rcpp::as<Ngrams>(patterns_);
+        std::vector<std::size_t> spans(patterns.size());
+        for (size_t g = 0; g < patterns.size(); g++) {
+            set.insert(patterns[g]);
+            spans[g] = patterns[g].size();
         }
         sort(spans.begin(), spans.end());
         spans.erase(unique(spans.begin(), spans.end()), spans.end());
@@ -183,14 +188,22 @@ namespace quanteda{
         return spans;
     }
 
-    inline std::vector<std::size_t> register_ngrams(List words_, IntegerVector ids_, MapNgrams &map_words) {
-        std::vector<std::size_t> spans(words_.size());
-        for (unsigned int g = 0; g < (unsigned int)words_.size(); g++) {
-            if (has_na(words_[g])) continue;
-            Ngram word = Rcpp::as<Ngram>(words_[g]);
-            map_words.insert(std::pair<Ngram, IdNgram>(word, ids_[g]));
-            spans[g] = word.size();
+    inline std::vector<std::size_t> register_ngrams(List patterns_, IntegerVector ids_, MapNgrams &map) {
+        
+        map.max_load_factor(GLOBAL_PATTERNS_MAX_LOAD_FACTOR);
+        Ngrams patterns = Rcpp::as<Ngrams>(patterns_);
+        std::vector<unsigned int> ids = Rcpp::as< std::vector<unsigned int> >(ids_);
+        std::vector<std::size_t> spans(map.size());
+        for (size_t g = 0; g < patterns.size(); g++) {
+            map.insert(std::pair<Ngram, IdNgram>(patterns[g], ids[g]));
+            spans[g] = patterns[g].size();
         }
+        
+        // Rcout << "current max_load_factor: " << map.max_load_factor() << std::endl;
+        // Rcout << "current size           : " << map.size() << std::endl;
+        // Rcout << "current bucket_count   : " << map.unsafe_bucket_count() << std::endl;
+        // Rcout << "current load_factor    : " << map.load_factor() << std::endl;
+        
         sort(spans.begin(), spans.end());
         spans.erase(unique(spans.begin(), spans.end()), spans.end());
         std::reverse(std::begin(spans), std::end(spans));
