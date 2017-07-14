@@ -187,16 +187,16 @@ List qatd_cpp_tokens_ngrams(const List &texts_,
 
     //dev::Timer timer;
     //dev::start_timer("Ngram generation", timer);
-#if QUANTEDA_USE_TBB
-    IdNgram id_ngram(1);
-    skipgram_mt skipgram_mt(texts, ns, skips, map_ngram, id_ngram);
-    parallelFor(0, texts.size(), skipgram_mt);
-#else
+// #if QUANTEDA_USE_TBB
+//     IdNgram id_ngram(1);
+//     skipgram_mt skipgram_mt(texts, ns, skips, map_ngram, id_ngram);
+//     parallelFor(0, texts.size(), skipgram_mt);
+// #else
     IdNgram id_ngram = 1;
     for (std::size_t h = 0; h < texts.size(); h++) {
         texts[h] = skipgram(texts[h], ns, skips, map_ngram, id_ngram);
     }
-#endif
+//#endif
      //dev::stop_timer("Ngram generation", timer);
     
     // Extract only keys in order of the id

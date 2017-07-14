@@ -7,6 +7,17 @@ using namespace quanteda;
 Mutex id_mutex;
 #endif
 
+unsigned int ngram_id2(const Ngram &ngram,
+                      MapNgrams &map_ngram,
+                      IdNgram &id_ngram){
+#if QUANTEDA_USE_TBB    
+    auto it = map_ngram.insert(std::pair<Ngram, unsigned int>(ngram, id_ngram.fetch_and_increment()));
+#else
+    auto it = map_ngram.insert(std::pair<Ngram, unsigned int>(ngram, id_ngram++));
+#endif
+    return it.first->second;
+}
+
 Text join_comp(Text tokens, 
                const std::vector<std::size_t> &spans,
                MapNgrams &map_comps,
@@ -174,19 +185,27 @@ List qatd_cpp_tokens_compound(const List &texts_,
 
     unsigned int id_last = types.size();
     #if QUANTEDA_USE_TBB
-    IdNgram id_comp(id_last + 1);
+    IdNgram id_comp(id_last);
     #else
-    IdNgram id_comp = id_last + 1;
+    IdNgram id_comp = id_last;
     #endif
     
     dev::Timer timer;
     dev::start_timer("Make map", timer);
     Rcout << "Size:" << comps_.size() << "\n";
     MapNgrams map_comps;
+    
+    Ngrams comps = Rcpp::as<Ngrams>(comps_);
+    
     std::vector<std::size_t> spans(comps_.size());
-    for (unsigned int g = 0; g < (unsigned int)comps_.size(); g++) {
-        if (has_na(comps_[g])) continue;
-        Ngram comp = Rcpp::as<Ngram>(comps_[g]);
+    Ngram comp;
+    //for (unsigned int g = 0; g < (unsigned int)comps_.size(); g++) {
+    for (size_t g = 0; g < comps.size(); g++) {
+        //if (has_na(comps_[g])) continue;
+        //Ngram comp = Rcpp::as<Ngram>(comps_[g]);
+        //Ngram comp = comps[g];
+        comp = comps[g];
+        //ngram_id2(comp, map_comps, id_comp);
         auto it = map_comps.insert(std::pair<Ngram, IdNgram>(comp, ++id_comp));
         //auto it = map_comps.insert(std::pair<Ngram, IdNgram>(comp, id_comp.fetch_and_increment()));
         spans[g] = comp.size();
