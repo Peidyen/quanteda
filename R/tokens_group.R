@@ -17,7 +17,7 @@ tokens_group <- function(x, groups = NULL) {
     x <- base::split(unlist(unclass(x), use.names = FALSE), factor(groups_index, levels = unique(groups)))
     names(x) <- as.character(names(x))
     attributes(x, FALSE) <- attrs
-    docvars(x) <- NULL
+    docvars(x) <- get_system_docvars(x)
     return(x)
 }
 
@@ -26,9 +26,8 @@ tokens_group <- function(x, groups = NULL) {
 generate_groups <- function(x, groups) {
     if (is.character(groups) && all(groups %in% names(documents(x)))) {
         groups <- interaction(documents(x)[, groups], drop = TRUE)
-    } else {
-        if (length(groups) != ndoc(x))
-            stop("groups must name docvars or provide data matching the documents in x")
     }
-    groups
+    if (length(groups) != ndoc(x))
+        stop("groups must name docvars or provide data matching the documents in x")
+    return(groups)
 }

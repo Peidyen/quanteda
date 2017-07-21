@@ -88,6 +88,7 @@ dfm_lookup.dfm <- function(x, dictionary, levels = 1:5,
         values_id <- c(values_id, values_temp)
         keys_id <- c(keys_id, rep(h, length(values_temp)))
     }
+    
     if (length(values_id)) {
         
         if (capkeys) {
@@ -98,10 +99,8 @@ dfm_lookup.dfm <- function(x, dictionary, levels = 1:5,
         temp <- x[,unlist(values_id, use.names = FALSE)]
         colnames(temp) <- keys[keys_id]
         temp <- dfm_compress(temp, margin = 'features')
-        # temp <- dfm_select(temp, pattern = keys, valuetype = 'fixed', padding = TRUE)
-        # an alternative way to select the identical features as in the dictionary keys
-        temp <- dfm_select(temp, 
-                           as.dfm(matrix(0, ncol = length(keys), dimnames = list(docs = "removeme", features = keys))))
+        temp <- dfm_select(temp, as.dfm(matrix(0, ncol = length(keys), 
+                                               dimnames = list(docs = NULL, features = keys))))
         if (exclusive) {
             result <- temp[, keys]
         } else {
@@ -117,6 +116,7 @@ dfm_lookup.dfm <- function(x, dictionary, levels = 1:5,
     attr(result, "what") <- "dictionary"
     attr(result, "dictionary") <- dictionary
     attributes(result, FALSE) <- attrs
+    docvars(result, '_length') <- docvars(x, '_length')
     
     return(result)
 }

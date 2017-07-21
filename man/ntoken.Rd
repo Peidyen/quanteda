@@ -5,7 +5,7 @@
 \alias{ntype}
 \title{count the number of tokens or types}
 \usage{
-ntoken(x, ...)
+ntoken(x, original = FALSE, ...)
 
 ntype(x, ...)
 }

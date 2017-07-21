@@ -5,6 +5,7 @@
 #' @param x \link{corpus}, \link{tokens}, or \link{dfm} object whose
 #'   document-level variables will be read or set
 #' @param field string containing the document-level variable name
+#' @param drop returns values as a vector for one variable if \code{TRUE}
 #' @return \code{docvars} returns a data.frame of the document-level variables,
 #'   dropping the second dimension to form a vector if a single docvar is
 #'   returned.
@@ -15,42 +16,42 @@
 #' 
 #' @export
 #' @keywords corpus
-docvars <- function(x, field = NULL) {
+docvars <- function(x, field = NULL, drop = TRUE) {
     UseMethod("docvars")
 }
 
 #' @noRd
 #' @export
-docvars.corpus <- function(x, field = NULL) {
+docvars.corpus <- function(x, field = NULL, drop = TRUE) {
     check_fields(x, field)
-    dvars <- documents(x)[, which(names(documents(x)) != "texts"), drop = FALSE]
+    dvars <- select_fields(documents(x), c('system', 'user'))
     if (is.null(field))
-        dvars <- dvars[, which(substring(names(dvars), 1, 1) != "_"), drop = FALSE]
-    get_docvars(dvars, field)
+        dvars <- select_fields(dvars, 'user')
+    get_docvars(dvars, field, drop)
 }
 
 #' @noRd
 #' @export
-docvars.tokenizedTexts <- function(x, field = NULL) {
+docvars.tokenizedTexts <- function(x, field = NULL, drop = TRUE) {
     check_fields(x, field)
     dvars <- attr(x, "docvars")
     if (is.null(field))
-        dvars <- dvars[, which(substring(names(dvars), 1, 1) != "_"), drop = FALSE]
-    get_docvars(dvars, field)    
+        dvars <- select_fields(dvars, 'user')
+    get_docvars(dvars, field, drop)    
 }
 
 #' @noRd
 #' @export
-docvars.dfm <- function(x, field = NULL) {
+docvars.dfm <- function(x, field = NULL, drop = TRUE) {
     check_fields(x, field)
     dvars <- x@docvars
     if (is.null(field))
-        dvars <- dvars[, which(substring(names(dvars), 1, 1) != "_"), drop = FALSE]
-    get_docvars(dvars, field)    
+        dvars <- select_fields(dvars, 'user')
+    get_docvars(dvars, field, drop)    
 }
 
 ## internal function to return the docvars for all docvars functions
-get_docvars <- function(dvars, field = NULL) {
+get_docvars <- function(dvars, field = NULL, drop = TRUE) {
     if (is.null(field)) {
         if (is.null(dvars)) {
             return(data.frame())
@@ -58,7 +59,7 @@ get_docvars <- function(dvars, field = NULL) {
             return(dvars)
         }
     } else {
-        return(dvars[, field, drop = TRUE])
+        return(dvars[, field, drop = drop])
     }
 }
 
@@ -104,7 +105,7 @@ get_docvars <- function(dvars, field = NULL) {
             field <- paste("docvar", seq_len(ncol(as.data.frame(value))), sep="")
     }
     documents(x)[field] <- value
-    x
+    return(x)
 }
 
 ## internal only
@@ -114,9 +115,9 @@ get_docvars <- function(dvars, field = NULL) {
         attr(x, "docvars") <- value
     } else {
         if (!is.data.frame(attr(x, "docvars"))) {
-            meta <- data.frame(value, stringsAsFactors = FALSE)
-            colnames(meta) <- field
-            attr(x, "docvars") <- meta
+            vars <- data.frame(value, stringsAsFactors = FALSE)
+            colnames(vars) <- field
+            attr(x, "docvars") <- cbind(get_system_docvars(x), vars)
         } else {
             attr(x, "docvars")[[field]] <- value
         }
@@ -131,9 +132,9 @@ get_docvars <- function(dvars, field = NULL) {
         x@docvars <- value
     } else {
         if (!is.data.frame(x@docvars)) {
-            meta <- data.frame(value, stringsAsFactors = FALSE)
-            colnames(meta) <- field
-            x@docvars <- meta
+            vars <- data.frame(value, stringsAsFactors = FALSE)
+            colnames(vars) <- field
+            x@docvars <- cbind(get_system_docvars(x), vars)
         } else {
             x@docvars[[field]] <- value
         }
@@ -234,8 +235,80 @@ metadoc.dfm <- function(x, field = NULL) {
 ## a field is not a valid docvar name
 check_fields <- function(x, field = NULL) {
     if (!is.null(field)) {
-        if (length(notin <- which(! field %in% c(names(docvars(x)), names(metadoc(x))))))
-            stop("field(s) ", field[notin], " not found", call. = FALSE)
+        if (is.corpus(x)) {
+            vars <- documents(x)
+        } else if (is.tokens(x)) {
+            vars <- attr(x, 'docvars')
+        } else if (is.dfm(x)) {
+            vars <- x@docvars
+        }
+        is_exist <- field %in% colnames(select_fields(vars, c('user', 'system')))
+        if (any(!is_exist))
+            stop("field(s) ", field[!is_exist], " not found", call. = FALSE)
     }
+}
+
+## internal function to select docvara fields
+select_fields <- function(x, types = c('user', 'system')) {
+    if (!is.data.frame(x)) return(data.frame())
+    names <- names(x)
+    is_system <- stri_startswith_fixed(names, '_') 
+    is_text <- stri_detect_fixed(names, 'texts') | stri_detect_fixed(names, '_texts')
+    
+    result <- data.frame(row.names = row.names(x))
+    if ('text' %in% types) {
+        result <- cbind(result, x[,is_text, drop = FALSE])
+    } 
+    if ('system' %in% types) {
+        result <- cbind(result, x[,is_system & !is_text, drop = FALSE])
+    }
+    if ('user' %in% types) {
+        result <- cbind(result, x[,!is_system & !is_text, drop = FALSE])
+    } 
+    return(result)
+}
+
+# internal function to set system field in docvars
+get_system_docvars <- function(x) {
+    
+    vars <- NULL
+    if (is.corpus(x)) {
+        vars <- documents(x)
+    } else if (is.tokens(x)) {
+        vars <- attr(x, 'docvars')
+    } else if (is.dfm(x)) {
+        vars <- x@docvars
+    }
+    vars <- select_fields(vars, 'system')
+    if (is.null(vars) || nrow(vars) != ndoc(x))
+        vars <- data.frame(row.names = docnames(x))
+    names <- colnames(vars)
+    if (!'_document' %in% names)
+        vars[['_document']] <- docnames(x)
+    if (!'_docid' %in% names)
+        vars[['_docid']] <- seq_len(ndoc(x))
+    if (!'_segid' %in% names)
+        vars[['_segid']] <- rep(1L, ndoc(x))
+    if (!'_length' %in% names)
+        vars[['_length']] <- ntoken(x)
+    
+    vars <- vars[,c('_document', '_docid', '_segid', '_length')] # sort and drop unknown
+    return(vars)
+}
+
+get_user_docvars <- function(x) {
+
+    vars <- NULL
+    if (is.corpus(x)) {
+        vars <- documents(x)
+    } else if (is.tokens(x)) {
+        vars <- attr(x, 'docvars')
+    } else if (is.dfm(x)) {
+        vars <- x@docvars
+    }
+    vars <- select_fields(vars, 'user')
+    if (is.null(vars) || nrow(vars) != ndoc(x))
+        vars <- data.frame(row.names = docnames(x))
+    return(vars)
 }
 

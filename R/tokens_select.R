@@ -130,6 +130,7 @@ tokens_select.tokens <- function(x, pattern, selection = c("keep", "remove"),
         x <- qatd_cpp_tokens_select(x, types, features_id, 2, padding)
     }
     attributes(x, FALSE) <- attrs
+    docvars(x, '_length') <- ntoken(x)
     return(x)
 }
 

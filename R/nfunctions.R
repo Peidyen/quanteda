@@ -31,6 +31,12 @@ ndoc <- function(x) {
 
 #' @noRd
 #' @export
+ndoc.character <- function(x) {
+    length(x)
+}
+
+#' @noRd
+#' @export
 ndoc.corpus <- function(x) {
     nrow(documents(x))
 }
@@ -119,7 +125,7 @@ nfeature.tokens <- function(x) {
 #' ntoken(dfm(corpus_subset(data_corpus_inaugural, Year<1800)))
 #' ntype(dfm(corpus_subset(data_corpus_inaugural, Year<1800)))
 #' @export
-ntoken <- function(x, ...) {
+ntoken <- function(x, original = FALSE, ...) {
     UseMethod("ntoken")
 }
 
@@ -134,29 +140,45 @@ ntype <- function(x, ...) {
 
 #' @noRd
 #' @export
-ntoken.corpus <- function(x, ...) {
+ntoken.corpus <- function(x, original = FALSE, ...) {
     ntoken(texts(x), ...)
 }
 
 
 #' @noRd
 #' @export
-ntoken.character <- function(x, ...) {
+ntoken.character <- function(x, original = FALSE, ...) {
     ntoken(tokens(x, ...))
 }
 
 #' @noRd
 #' @export
-ntoken.dfm <- function(x, ...) {
-    if (length(list(...)) > 0)
-        warning("additional arguments not used for ntoken.dfm()")
-    rowSums(x)
+ntoken.dfm <- function(x, original = FALSE, ...) {
+    if (original) {
+        rowSums(docvars(x, '_length', FALSE)) # use rowSums to get named vector
+    } else {
+        rowSums(x)    
+    }
 }
 
 #' @noRd
 #' @export
-ntoken.tokenizedTexts <- function(x, ...) {
-    lengths(x)
+ntoken.tokenizedTexts <- function(x, original = FALSE, ...) {
+    if (original) {
+        rowSums(docvars(x, '_length', FALSE)) # use rowSums to get named vector
+    } else {
+        lengths(x)   
+    }
+}
+
+#' @export
+#' @noRd
+ntoken.tokens <- function(x, original = FALSE, ...) {
+    if (original) {
+        rowSums(docvars(x, '_length', FALSE)) # use rowSums to get named vector
+    } else {
+        lengths(x)   
+    }
 }
 
 #' @noRd
@@ -185,11 +207,6 @@ ntype.tokenizedTexts <- function(x, ...) {
     vapply(lapply(x, unique), length, integer(1))
 }
 
-#' @export
-#' @noRd
-ntoken.tokens <- function(x, ...) {
-    lengths(x)
-}
 
 #' count the number of sentences
 #' 

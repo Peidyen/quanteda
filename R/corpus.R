@@ -122,31 +122,31 @@ corpus.character <- function(x, docnames = NULL, docvars = NULL, metacorpus = NU
     if (length(addedArgs <- list(...)))
         warning("Argument", ifelse(length(addedArgs)>1, "s ", " "), names(addedArgs), " not used.", sep = "")
     
-    x_names <- names(x)
+    attrs <- attributes(x)
     
     # convert the dreaded "curly quotes" to ASCII equivalents
-    x <- stringi::stri_replace_all_fixed(x, 
+    x <- stri_replace_all_fixed(x, 
                                          c("\u201C", "\u201D", "\u201F",
                                            "\u2018", "\u201B", "\u2019"),                                     
                                          c("\"", "\"", "\"", 
                                            "\'", "\'", "\'"), vectorize_all = FALSE)
     
     # replace all hyphens with simple hyphen
-    x <- stringi::stri_replace_all_regex(x, "\\p{Pd}", "-")
+    x <- stri_replace_all_regex(x, "\\p{Pd}", "-")
     
     # normalize EOL
-    x <- stringi::stri_replace_all_fixed(x, "\r\n", "\n") # Windows
-    x <- stringi::stri_replace_all_fixed(x, "\r", "\n") # Old Macintosh
+    x <- stri_replace_all_fixed(x, "\r\n", "\n") # Windows
+    x <- stri_replace_all_fixed(x, "\r", "\n") # Old Macintosh
     
     # name the texts vector
-    if (!is.null(docnames)) {
-        stopifnot(length(docnames) == length(x))
+    if (!is.null(docnames) && length(docnames) == length(x)) {
         names(x) <- docnames
-    } else if (is.null(x_names)) {
-        names(x) <- paste("text", seq_along(x), sep="")
-    } else if (is.null(names(x))) {
-        # if they previously existed, but got obliterated by a stringi function
-        names(x) <- x_names
+    } else {
+        if (is.null(attrs$names)) {
+            names(x) <- paste("text", seq_along(x), sep="")
+        } else {
+            names(x) <- attrs$names
+        }
     }
 
     # ensure that docnames are unique
@@ -163,9 +163,8 @@ corpus.character <- function(x, docnames = NULL, docvars = NULL, metacorpus = NU
 
     # create the documents data frame starting with the texts, using an empty field
     # this saves space if it needs to be separated later
-    documents <- data.frame(texts = rep(NA, length(x)), 
-                            row.names = names(x),
-                            check.rows = TRUE, stringsAsFactors = FALSE)
+    documents <- data.frame('texts' = rep(NA, length(x))) # TODO: should be '_texts' to be a system field
+    documents <- cbind(documents, get_system_docvars(x))
 
     # user-supplied document-level variables (one kind of meta-data)
     if (!is.null(docvars)) {

@@ -199,8 +199,7 @@ tokens.character <- function(x, what = c("word", "sentence", "character", "faste
     }
     
     what <- match.arg(what)
-    names_org <- names(x)
-    attrs_org <- attributes(x)
+    attrs <- attributes(x)
     
     # disable remove_twitter if remove_punct = FALSE
     if (!remove_punct & remove_twitter) {
@@ -270,12 +269,18 @@ tokens.character <- function(x, what = c("word", "sentence", "character", "faste
         catm("...total elapsed: ", (proc.time() - time_start)[3], "seconds.\n")
         catm("Finished tokenizing and cleaning", format(length(result), big.mark=","), "texts.\n")
     }
+
+    if (is.null(attrs$names)) {
+        names(result) <- paste("text", seq_along(x), sep="")
+    } else {
+        names(result) <- attrs$names
+    }
     
-    names(result) <- names_org
     attr(result, "what") <- what
     attr(result, "ngrams") <- ngrams
     attr(result, "concatenator") <- concatenator
     attr(result, 'padding') <- FALSE
+    docvars(result) <- get_system_docvars(result)
     
     # issue #607: remove @ # only if not part of Twitter names
     if (remove_punct & !remove_twitter) {
@@ -285,18 +290,14 @@ tokens.character <- function(x, what = c("word", "sentence", "character", "faste
     return(result)
 }
 
-
 #' @rdname tokens
 #' @export
 #' @noRd
 tokens.corpus <- function(x, ..., include_docvars = TRUE) {
     result <- tokens(texts(x), ...)
-    if (include_docvars) {
-        dvars <- documents(x)[, which(names(documents(x)) != "texts"), drop = FALSE]
-        if (length(dvars)) {
-            docvars(result) <- dvars
-        }
-    }
+    if (include_docvars)
+        docvars(result) <- cbind(get_system_docvars(x), get_user_docvars(x))
+    docvars(result, '_length') <- ntoken(result)
     return(result)
 }
 
@@ -323,6 +324,12 @@ as.tokens.list <- function(x, concatenator = '_') {
     attr(result, "ngrams") <- 1L
     attr(result, "concatenator") <- concatenator
     attr(result, 'padding') <- FALSE
+    attr(result, 'docvars') <- data.frame('_document' = names(result),
+                                          '_docid' = seq_len(length(result)),
+                                          '_segid' = rep(1L, length(result)),
+                                          '_length' = ntoken(result),
+                                          row.names = names(result),
+                                          check.rows = TRUE, check.names = FALSE, stringsAsFactors = FALSE)
     class(result)[2] <- "tokenizedTexts"
     return(result)
 }

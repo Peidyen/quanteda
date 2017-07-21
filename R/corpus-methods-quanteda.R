@@ -207,6 +207,12 @@ docnames <- function(x) {
 
 #' @noRd
 #' @export
+docnames.character <- function(x) {
+    names(x)
+}
+
+#' @noRd
+#' @export
 docnames.corpus <- function(x) {
     # didn't use accessor documents() because didn't want to pass
     # that large object

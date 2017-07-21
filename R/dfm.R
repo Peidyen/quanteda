@@ -284,14 +284,19 @@ dfm.tokenizedTexts <- function(x,
     result@concatenator <- attr(x, "concatenator")
     
     if (attr(x, 'what') == "dictionary") {
-        attr(result, 'what') <- "dictionary"
-        attr(result, 'dictionary') <- attr(x, 'dictionary')
+        result@what <- "dictionary"
+        result@dictionary <- attr(x, 'dictionary')
     }
     
-    if (!is.null(attr(x, "docvars"))) {
-        result@docvars <- attr(x, "docvars")
+    # vars_user <- select_fields(attr(x, "docvars"), 'user')
+    # vars_system <- select_fields(attr(x, "docvars"), 'system')
+    # if (!length(vars_system)) {
+    #     vars_system <- get_system_docvars(x)
+    # }
+    if (!length(get_user_docvars(x))) {
+        docvars(result) <- cbind(get_system_docvars(x), get_user_docvars(x))
     } else {
-        result@docvars <- data.frame()
+        docvars(result) <- get_system_docvars(x)
     }
     
     dfm(result, tolower = FALSE, stem = stem, valuetype = valuetype, verbose = verbose, ...)

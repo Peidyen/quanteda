@@ -157,7 +157,8 @@ dfm_select.dfm <-  function(x, pattern = NULL,
         message_select(selection, length(features_id), 0, 
                        length(features_add), 0)
     }
-    attributes(x, FALSE) <- attrs
+    attributes(result, FALSE) <- attrs
+    docvars(result, '_length') <- ntoken(result)
     return(result)
 }
 

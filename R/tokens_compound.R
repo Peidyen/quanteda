@@ -73,6 +73,7 @@ tokens_compound.tokens <- function(x, pattern,
     x <- qatd_cpp_tokens_compound(x, seqs_id, types, concatenator, join)
     attributes(x, FALSE) <- attrs
     attr(x, "concatenator") <- concatenator
+    docvars(x, '_length') <- ntoken(x)
     return(x)
 }
 

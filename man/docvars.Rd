@@ -5,7 +5,7 @@
 \alias{docvars<-}
 \title{get or set for document-level variables}
 \usage{
-docvars(x, field = NULL)
+docvars(x, field = NULL, drop = TRUE)
 
 docvars(x, field = NULL) <- value
 }
@@ -14,6 +14,8 @@ docvars(x, field = NULL) <- value
 document-level variables will be read or set}
 
 \item{field}{string containing the document-level variable name}
+
+\item{drop}{returns values as a vector for one variable if \code{TRUE}}
 
 \item{value}{the new values of the document-level variable}
 }

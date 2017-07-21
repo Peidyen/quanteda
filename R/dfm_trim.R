@@ -170,6 +170,8 @@ dfm_trim.dfm <- function(x, min_count = 1, min_docfreq = 1, max_count = NULL, ma
         stop("No features left after trimming.")
     
     # dfm_sort(x[, -featureRemoveIndex])
-    x[, -featureRemoveIndex]
+    x <- x[, -featureRemoveIndex]
+    docvars(x, '_length') <- ntoken(x)
+    return(x)
 }
 
