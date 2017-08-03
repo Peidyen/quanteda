@@ -45,10 +45,10 @@ sequences <- function(x,
 #' @noRd
 #' @export
 sequences.tokens <- function(x,
-                              min_count = 2,
-                              size = 2,
-                              method = c("lambda", "lambda1"),
-                              smoothing = 0.5,
+                             min_count = 2,
+                             size = 2,
+                             method = c("lambda", "lambda1"),
+                             smoothing = 0.5,
                              show_counts = FALSE) {
     
     attrs_org <- attributes(x)
@@ -138,6 +138,7 @@ marginalfun <- function(k) {
     utils::combn(k, k-1, simplify = FALSE)
 }
 
+
 # function to get expected counts from IPF
 get_expected_values <- function(df, size) {
     # get the columns of the data.frame that are the n* counts
@@ -151,7 +152,7 @@ get_expected_values <- function(df, size) {
         array_dimnames <- c(rep(list(c("0", "1")), size))
         names(array_dimnames) <- paste0("W", size:1)
         counts_table <- array(countsnum, dim = rep(2, size), dimnames = array_dimnames)
-        counts_expected <- stats::loglin(counts_table,
+        counts_expected <- loglin_local(counts_table,
                                          margin =  marginalfun(size),
                                          fit = TRUE, print = FALSE)$fit
         counts_expected <- as.numeric(counts_expected)
@@ -160,4 +161,93 @@ get_expected_values <- function(df, size) {
     })
     
     data.frame(t(expected_counts_list))
+}
+
+# modified version of stats::loglin
+# added pmi, LFMD for multi-dimensional table
+loglin_local <- function (table, margin, start = rep(1, length(table)), fit = FALSE, 
+                          eps = 0.1, iter = 20L, param = FALSE, print = TRUE) 
+{
+    rfit <- fit
+    dtab <- dim(table)
+    nvar <- length(dtab)
+    ncon <- length(margin)
+    conf <- matrix(0L, nrow = nvar, ncol = ncon)
+    nmar <- 0
+    varnames <- names(dimnames(table))
+    for (k in seq_along(margin)) {
+        tmp <- margin[[k]]
+        if (is.character(tmp)) {
+            tmp <- match(tmp, varnames)
+            margin[[k]] <- tmp
+        }
+        if (!is.numeric(tmp) || any(is.na(tmp) | tmp <= 0)) 
+            stop("'margin' must contain names or numbers corresponding to 'table'")
+        conf[seq_along(tmp), k] <- tmp
+        nmar <- nmar + prod(dtab[tmp])
+    }
+    ntab <- length(table)
+    if (length(start) != ntab) 
+        stop("'start' and 'table' must be same length")
+    z <- .Call(stats:::C_LogLin, dtab, conf, table, start, nmar, eps, 
+               iter)
+    if (print) 
+        cat(z$nlast, "iterations: deviation", z$dev[z$nlast], 
+            "\\n")
+    fit <- z$fit
+    attributes(fit) <- attributes(table)
+    observed <- as.vector(table[start > 0])
+    expected <- as.vector(fit[start > 0])
+    pearson <- sum((observed - expected)^2/expected)
+    observed <- as.vector(table[table * fit > 0])
+    expected <- as.vector(fit[table * fit > 0])
+    lrt <- 2 * sum(observed * log(observed/expected))
+    subsets <- function(x) {
+        y <- list(vector(mode(x), length = 0))
+        for (i in seq_along(x)) {
+            y <- c(y, lapply(y, "c", x[i]))
+        }
+        y[-1L]
+    }
+    df <- rep.int(0, 2^nvar)
+    for (k in seq_along(margin)) {
+        terms <- subsets(margin[[k]])
+        for (j in seq_along(terms)) df[sum(2^(terms[[j]] - 1))] <- prod(dtab[terms[[j]]] - 
+                                                                            1)
+    }
+    if (!is.null(varnames) && all(nzchar(varnames))) {
+        for (k in seq_along(margin)) margin[[k]] <- varnames[margin[[k]]]
+    }
+    else {
+        varnames <- as.character(1:ntab)
+    }
+    y <- list(lrt = lrt, pearson = pearson, df = ntab - sum(df) - 
+                  1, margin = margin)
+    if (rfit) 
+        y$fit <- fit
+    if (param) {
+        fit <- log(fit)
+        terms <- seq_along(df)[df > 0]
+        parlen <- length(terms) + 1
+        parval <- list(parlen)
+        parnam <- character(parlen)
+        parval[[1L]] <- mean(fit)
+        parnam[1L] <- "(Intercept)"
+        fit <- fit - parval[[1L]]
+        dyadic <- NULL
+        while (any(terms > 0)) {
+            dyadic <- cbind(dyadic, terms%%2)
+            terms <- terms%/%2
+        }
+        dyadic <- dyadic[order(rowSums(dyadic)), , drop = FALSE]
+        for (i in 2:parlen) {
+            vars <- which(dyadic[i - 1, ] > 0)
+            parval[[i]] <- apply(fit, vars, mean)
+            parnam[i] <- paste(varnames[vars], collapse = ".")
+            fit <- sweep(fit, vars, parval[[i]], check.margin = FALSE)
+        }
+        names(parval) <- parnam
+        y$param <- parval
+    }
+    return(y)
 }
