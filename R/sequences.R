@@ -77,15 +77,6 @@ sequences.tokens <- function(x,
         }
         df_e_counts <- format(round(get_expected_values(df_counts, size = size), 1), nsmall = 1)
 
-        if (size == 2){
-            colnames(df_e_counts) <- c("e00", "e01", "e10", "e11")
-        } else if (size == 3){
-            colnames(df_e_counts) <- c("e000", "e001", "e010", "e011", "e100", "e101", "e110", "e111")
-        } else if (size == 4){
-            colnames(df_e_counts) <- c("e0000", "e0001", "e0010", "e0011", "e0100", "e0101", "e0110", "e1111", 
-                                       "e1000", "e1001", "e1010", "e1011", "e1100", "e1101", "e1110", "e1111")
-            
-        }
         result <- cbind(result[, 1:11], df_counts, df_e_counts)
     } else {
         result <- result[, 1:11]
@@ -156,7 +147,7 @@ get_expected_values <- function(df, size) {
                                          margin =  marginalfun(size),
                                          fit = TRUE, print = FALSE)$fit
         counts_expected <- as.numeric(counts_expected)
-        names(counts_expected) <- gsub("e", "n", names(counts))
+        names(counts_expected) <- gsub("n", "e", names(counts))
         counts_expected
     })
     
