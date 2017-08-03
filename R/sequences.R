@@ -197,12 +197,12 @@ loglin_local <- function (table, margin, start = rep(1, length(table)), fit = FA
     lrt <- 2 * sum(observed * log(observed/expected))
     
     #pmi
-    pmi <- log(sum(observed) * observed[nvar] / prod(expected[2^(0:nvar-1)]) )
+    pmi <- log(sum(observed) * observed[ntab] / prod(expected[2^(0:(nvar-1))+1]) )
     
     #LFMD
     #see http://www.lrec-conf.org/proceedings/lrec2002/pdf/128.pdf for details about LFMD
     #LFMD = log2(P(w1,w2)^2/P(w1)P(w2)) + log2(P(w1,w2))
-    lfmd <- log2(sum(observed)^(nvar-2) * observed[ntab]^2 / prod(expected[2^(0:nvar-1)]) ) + log2(observed[ntab]/sum(observed))
+    lfmd <- log2(sum(observed)^(nvar-2) * observed[ntab]^2 / prod(expected[2^(0:(nvar-1))+1]) ) + log2(observed[ntab]/sum(observed))
     
     subsets <- function(x) {
         y <- list(vector(mode(x), length = 0))
