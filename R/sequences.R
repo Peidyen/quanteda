@@ -75,9 +75,10 @@ sequences.tokens <- function(x,
                                      "n1000", "n1001", "n1010", "n1011", "n1100", "n1101", "n1110", "n1111")
             
         }
+        
         df_e_counts <- format(round(get_expected_values(df_counts, size = size), 1), nsmall = 1)
 
-        result <- cbind(result[, 1:11], df_counts, df_e_counts)
+        result <- cbind(result[, 1:7], df_e_counts[, 1:4], df_counts, df_e_counts[, -(1:4)])
     } else {
         result <- result[, 1:11]
     }
@@ -143,12 +144,13 @@ get_expected_values <- function(df, size) {
         array_dimnames <- c(rep(list(c("0", "1")), size))
         names(array_dimnames) <- paste0("W", size:1)
         counts_table <- array(countsnum, dim = rep(2, size), dimnames = array_dimnames)
-        counts_expected <- loglin_local(counts_table,
-                                         margin =  marginalfun(size),
-                                         fit = TRUE, print = FALSE)$fit
-        counts_expected <- as.numeric(counts_expected)
-        names(counts_expected) <- gsub("n", "e", names(counts))
-        counts_expected
+        result <- loglin_local(counts_table,
+                               margin =  marginalfun(size),
+                               fit = TRUE, print = FALSE)
+        counts_expected <- as.numeric(result$fit)
+        result_new <- cbind(as.numeric(result$lrt), as.numeric(result$pearson), as.numeric(result$pmi),as.numeric(result$lfmd),t(counts_expected))
+        names(result_new) <- c("G2", "chi2", "pmi", "LFMD", gsub("n", "e", names(counts)))
+        result_new
     })
     
     data.frame(t(expected_counts_list))
@@ -193,6 +195,15 @@ loglin_local <- function (table, margin, start = rep(1, length(table)), fit = FA
     observed <- as.vector(table[table * fit > 0])
     expected <- as.vector(fit[table * fit > 0])
     lrt <- 2 * sum(observed * log(observed/expected))
+    
+    #pmi
+    pmi <- log(sum(observed) * observed[nvar] / prod(expected[2^(0:nvar-1)]) )
+    
+    #LFMD
+    #see http://www.lrec-conf.org/proceedings/lrec2002/pdf/128.pdf for details about LFMD
+    #LFMD = log2(P(w1,w2)^2/P(w1)P(w2)) + log2(P(w1,w2))
+    lfmd <- log2(sum(observed)^(nvar-2) * observed[ntab]^2 / prod(expected[2^(0:nvar-1)]) ) + log2(observed[ntab]/sum(observed))
+    
     subsets <- function(x) {
         y <- list(vector(mode(x), length = 0))
         for (i in seq_along(x)) {
@@ -212,7 +223,7 @@ loglin_local <- function (table, margin, start = rep(1, length(table)), fit = FA
     else {
         varnames <- as.character(1:ntab)
     }
-    y <- list(lrt = lrt, pearson = pearson, df = ntab - sum(df) - 
+    y <- list(lrt = lrt, pearson = pearson, pmi = pmi, lfmd = lfmd, df = ntab - sum(df) - 
                   1, margin = margin)
     if (rfit) 
         y$fit <- fit

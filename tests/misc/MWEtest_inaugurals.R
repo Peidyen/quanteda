@@ -1,91 +1,4 @@
 
-loglin_local <- function (table, margin, start = rep(1, length(table)), fit = FALSE, 
-          eps = 0.1, iter = 20L, param = FALSE, print = TRUE) 
-{
-    rfit <- fit
-    dtab <- dim(table)
-    nvar <- length(dtab)
-    ncon <- length(margin)
-    conf <- matrix(0L, nrow = nvar, ncol = ncon)
-    nmar <- 0
-    varnames <- names(dimnames(table))
-    for (k in seq_along(margin)) {
-        tmp <- margin[[k]]
-        if (is.character(tmp)) {
-            tmp <- match(tmp, varnames)
-            margin[[k]] <- tmp
-        }
-        if (!is.numeric(tmp) || any(is.na(tmp) | tmp <= 0)) 
-            stop("'margin' must contain names or numbers corresponding to 'table'")
-        conf[seq_along(tmp), k] <- tmp
-        nmar <- nmar + prod(dtab[tmp])
-    }
-    ntab <- length(table)
-    if (length(start) != ntab) 
-        stop("'start' and 'table' must be same length")
-    z <- .Call(stats:::C_LogLin, dtab, conf, table, start, nmar, eps, 
-               iter)
-    if (print) 
-        cat(z$nlast, "iterations: deviation", z$dev[z$nlast], 
-            "\\n")
-    fit <- z$fit
-    attributes(fit) <- attributes(table)
-    observed <- as.vector(table[start > 0])
-    expected <- as.vector(fit[start > 0])
-    pearson <- sum((observed - expected)^2/expected)
-    observed <- as.vector(table[table * fit > 0])
-    expected <- as.vector(fit[table * fit > 0])
-    lrt <- 2 * sum(observed * log(observed/expected))
-    subsets <- function(x) {
-        y <- list(vector(mode(x), length = 0))
-        for (i in seq_along(x)) {
-            y <- c(y, lapply(y, "c", x[i]))
-        }
-        y[-1L]
-    }
-    df <- rep.int(0, 2^nvar)
-    for (k in seq_along(margin)) {
-        terms <- subsets(margin[[k]])
-        for (j in seq_along(terms)) df[sum(2^(terms[[j]] - 1))] <- prod(dtab[terms[[j]]] - 
-                                                                            1)
-    }
-    if (!is.null(varnames) && all(nzchar(varnames))) {
-        for (k in seq_along(margin)) margin[[k]] <- varnames[margin[[k]]]
-    }
-    else {
-        varnames <- as.character(1:ntab)
-    }
-    y <- list(lrt = lrt, pearson = pearson, df = ntab - sum(df) - 
-                  1, margin = margin)
-    if (rfit) 
-        y$fit <- fit
-    if (param) {
-        fit <- log(fit)
-        terms <- seq_along(df)[df > 0]
-        parlen <- length(terms) + 1
-        parval <- list(parlen)
-        parnam <- character(parlen)
-        parval[[1L]] <- mean(fit)
-        parnam[1L] <- "(Intercept)"
-        fit <- fit - parval[[1L]]
-        dyadic <- NULL
-        while (any(terms > 0)) {
-            dyadic <- cbind(dyadic, terms%%2)
-            terms <- terms%/%2
-        }
-        dyadic <- dyadic[order(rowSums(dyadic)), , drop = FALSE]
-        for (i in 2:parlen) {
-            vars <- which(dyadic[i - 1, ] > 0)
-            parval[[i]] <- apply(fit, vars, mean)
-            parnam[i] <- paste(varnames[vars], collapse = ".")
-            fit <- sweep(fit, vars, parval[[i]], check.margin = FALSE)
-        }
-        names(parval) <- parnam
-        y$param <- parval
-    }
-    return(y)
-}
-
 ########################################################################################################
 # Tests of statistics for detecting multiword expressions
 # JK, 18.7.2017
@@ -130,6 +43,15 @@ loglin_local <- function (table, margin, start = rep(1, length(table)), fit = FA
     observed <- as.vector(table[table * fit > 0])
     expected <- as.vector(fit[table * fit > 0])
     lrt <- 2 * sum(observed * log(observed/expected))
+    
+    #pmi
+    pmi <- log(sum(observed) * observed[nvar] / prod(expected[2^(0:nvar-1)]) )
+    
+    #LFMD
+    #see http://www.lrec-conf.org/proceedings/lrec2002/pdf/128.pdf for details about LFMD
+    #LFMD = log2(P(w1,w2)^2/P(w1)P(w2)) + log2(P(w1,w2))
+    lfmd <- log2(sum(observed)^(nvar-2) * observed[ntab]^2 / prod(expected[2^(0:nvar-1)]) ) + log2(observed[ntab]/sum(observed))
+    
     subsets <- function(x) {
         y <- list(vector(mode(x), length = 0))
         for (i in seq_along(x)) {
@@ -149,7 +71,7 @@ loglin_local <- function (table, margin, start = rep(1, length(table)), fit = FA
     else {
         varnames <- as.character(1:ntab)
     }
-    y <- list(lrt = lrt, pearson = pearson, df = ntab - sum(df) - 
+    y <- list(lrt = lrt, pearson = pearson, pmi = pmi, lfmd = lfmd, df = ntab - sum(df) - 
                   1, margin = margin)
     if (rfit) 
         y$fit <- fit
