@@ -3,6 +3,394 @@
 #include <bitset>
 using namespace quanteda;
 
+/* Algorithm AS 51 Appl. Statist. (1972), vol. 21, p. 218
+ original (C) Royal Statistical Society 1972
+Performs an iterative proportional fit of the marginal totals of a
+contingency table.
+*/
+#include <math.h>
+
+#include <stdio.h>
+#include <R_ext/Memory.h>
+#include <R_ext/Applic.h>
+
+#undef max
+#undef min
+#undef abs
+#define	max(a, b)		((a) < (b) ? (b) : (a))
+#define	min(a, b)		((a) > (b) ? (b) : (a))
+#define	abs(x)			((x) >= 0 ? (x) : -(x))
+
+static void collap(int nvar, double *x, double *y, int locy,
+                   int *dim, int *config);
+static void adjust(int nvar, double *x, double *y, double *z,
+                   int *locz, int *dim, int *config, double *d);
+
+/* Table of constant values */
+
+static void 
+    loglin_local(int nvar, int *dim, int ncon, int *config, int ntab,
+           double *table, double *fit, int *locmar, int nmar, double *marg,
+           int nu, double *u, double maxdev, int maxit,
+           double *dev, int *nlast, int *ifault)
+    {
+        // nvar could be zero (no-segfault test)
+        if (!nvar) throw("no variables");  // not translated
+        int i, j, k, n, point, size, check[nvar], icon[nvar];
+        double x, y, xmax;
+        
+        /* Parameter adjustments */
+        --dim;
+        --locmar;
+        config -= nvar + 1;
+        --fit;
+        --table;
+        --marg;
+        --u;
+        --dev;
+        
+        /* Function body */
+        
+        *ifault = 0;
+        *nlast = 0;
+        
+        /* Check validity of NVAR, the number of variables, and of maxit,
+        the maximum number of iterations */
+        
+        if (nvar > 0 && maxit > 0) goto L10;
+        L5:
+            *ifault = 4;
+        return;
+        
+        /* Look at table and fit constants */
+        
+        L10:
+            size = 1;
+        for (j = 1; j <= nvar; j++) {
+            if (dim[j] <= 0) goto L5;
+            size *= dim[j];
+        }
+        if (size <= ntab) goto L40;
+        L35:
+            *ifault = 2;
+        return;
+        L40:
+            x = 0.;
+        y = 0.;
+        for (i = 1; i <= size; i++) {
+            if (table[i] < 0. || fit[i] < 0.) goto L5;
+            x += table[i];
+            y += fit[i];
+        }
+        
+        /* Make a preliminary adjustment to obtain the fit to an empty
+        configuration list */
+        
+        if (y == 0.) goto L5;
+        x /= y;
+        for (i = 1; i <= size; i++) fit[i] = x * fit[i];
+        if (ncon <= 0 || config[nvar + 1] == 0) return;
+        
+        /* Allocate marginal tables */
+        
+        point = 1;
+        for (i = 1; i <= ncon; i++) {
+            /* A zero beginning a configuration indicates that the list is
+            completed */
+            if (config[i * nvar + 1] == 0)  goto L160;
+            /* Get marginal table size.  While doing this task, see if the
+            configuration list contains duplications or elements out of
+            range. */
+            size = 1;
+            for (j = 0; j < nvar; j++) check[j] = 0;
+            for (j = 1; j <= nvar; j++) {
+                k = config[j + i * nvar];
+                /* A zero indicates the end of the string. */
+                if (k == 0) goto L130;
+                /* See if element is valid. */
+                if (k >= 0 && k <= nvar) goto L100;
+                L95:
+                    *ifault = 1;
+                return;
+                /* Check for duplication */
+                L100:
+                    if (check[k - 1]) goto L95;
+                    check[k - 1] = 1;
+                    /* Get size */
+                    size *= dim[k];
+            }
+            
+            /* Since U is used to store fitted marginals, size must not
+            exceed NU */
+            L130:
+                if (size > nu) goto L35;
+                
+                /* LOCMAR points to marginal tables to be placed in MARG */
+                locmar[i] = point;
+                point += size;
+        }
+        
+        /* Get N, number of valid configurations */
+        
+        i = ncon + 1;
+        L160:
+            n = i - 1;
+        
+        /* See if MARG can hold all marginal tables */
+        
+        if (point > nmar + 1) goto L35;
+        
+        /* Obtain marginal tables */
+        
+        for (i = 1; i <= n; i++) {
+            for (j = 1; j <= nvar; j++) {
+                icon[j - 1] = config[j + i * nvar];
+            }
+            collap(nvar, &table[1], &marg[1], locmar[i], &dim[1], icon);
+        }
+        
+        /* Perform iterations */
+        
+        for (k = 1; k <= maxit; k++) {
+            /* XMAX is maximum deviation observed between fitted and true
+            marginal during a cycle */
+            xmax = 0.;
+            for (i = 1; i <= n; i++) {
+                for (j = 1; j <= nvar; j++) icon[j - 1] = config[j + i * nvar];
+                collap(nvar, &fit[1], &u[1], 1, &dim[1], icon);
+                adjust(nvar, &fit[1], &u[1], &marg[1], &locmar[i], &dim[1], icon, &xmax);
+            }
+            /* Test convergence */
+            dev[k] = xmax;
+            if (xmax < maxdev) goto L240;
+        }
+        if (maxit > 1) goto L230;
+        *nlast = 1;
+        return;
+        
+        /* No convergence */
+        L230:
+            *ifault = 3;
+        *nlast = maxit;
+        return;
+        
+        /* Normal termination */
+        L240:
+            *nlast = k;
+        
+        return;
+    }
+
+/* Algorithm AS 51.1 Appl. Statist. (1972), vol. 21, p. 218
+Computes a marginal table from a complete table.
+All parameters are assumed valid without test.
+The larger table is X and the smaller one is Y.
+*/
+
+void collap(int nvar, double *x, double *y, int locy, int *dim, int *config)
+{
+    int i, j, k, l, n, locu, size[nvar + 1], coord[nvar];
+    
+    /* Parameter adjustments */
+    --config;
+    --dim;
+    --x;
+    --y;
+    
+    /* Initialize arrays */
+    
+    size[0] = 1;
+    for (k = 1; k <= nvar; k++) {
+        l = config[k];
+        if (l == 0)  goto L20;
+        size[k] = size[k - 1] * dim[l];
+    }
+    
+    /* Find number of variables in configuration */
+    
+    k = nvar + 1;
+    L20:
+        n = k - 1;
+    
+    /* Initialize Y.  First cell of marginal table is at Y(LOCY) and
+    table has SIZE(K) elements */
+    
+    locu = locy + size[k - 1] - 1;
+    for (j = locy; j <= locu; j++) y[j] = 0.;
+    
+    /* Initialize coordinates */
+    
+    for (k = 0; k < nvar; k++) coord[k] = 0;
+    
+    /* Find locations in tables */
+    i = 1;
+    L60:
+        j = locy;
+    for (k = 1; k <= n; k++) {
+        l = config[k];
+        j += coord[l - 1] * size[k - 1];
+    }
+    y[j] += x[i];
+    
+    /* Update coordinates */
+    
+    i++;
+    for (k = 1; k <= nvar; k++) {
+        coord[k - 1]++;
+        if (coord[k - 1] < dim[k]) goto L60;
+        coord[k - 1] = 0;
+    }
+    
+    return;
+}
+
+
+/* Algorithm AS 51.2 Appl. Statist. (1972), vol. 21, p. 218
+Makes proportional adjustment corresponding to CONFIG.
+All parameters are assumed valid without test.
+*/
+
+void adjust(int nvar, double *x, double *y, double *z, int *locz,
+            int *dim, int *config, double *d)
+{
+    int i, j, k, l, n, size[nvar + 1], coord[nvar];
+    double e;
+    
+    /* Parameter adjustments */
+    --config;
+    --dim;
+    --x;
+    --y;
+    --z;
+    
+    /* Set size array */
+    
+    size[0] = 1;
+    for (k = 1; k <= nvar; k++) {
+        l = config[k];
+        if (l == 0) goto L20;
+        size[k] = size[k - 1] * dim[l];
+    }
+    
+    /* Find number of variables in configuration */
+    
+    k = nvar + 1;
+    L20:
+        n = k - 1;
+    
+    /* Test size of deviation */
+    
+    l = size[k - 1];
+    j = 1;
+    k = *locz;
+    for (i = 1; i <= l; i++) {
+        e = abs(z[k] - y[j]);
+        if (e > *d) {
+            *d = e;
+        }
+        j++;
+        k++;
+    }
+    
+    /* Initialize coordinates */
+    
+    for (k = 0; k < nvar; k++)  coord[k] = 0;
+    i = 1;
+    
+    /* Perform adjustment */
+    
+    L50:
+        j = 0;
+    for (k = 1; k <= n; k++) {
+        l = config[k];
+        j += coord[l - 1] * size[k - 1];
+    }
+    k = j + *locz;
+    j++;
+    
+    /* Note that Y(J) should be non-negative */
+    
+    if (y[j] <= 0.) x[i] = 0.;
+    if (y[j] > 0.) x[i] = x[i] * z[k] / y[j];
+    
+    /* Update coordinates */
+    
+    i++;
+    for (k = 1; k <= nvar; k++) {
+        coord[k - 1]++;
+        if (coord[k - 1] < dim[k]) goto L50;
+        coord[k - 1] = 0;
+    }
+    
+    return;
+}
+// 
+// #undef max
+// #undef min
+// #undef abs
+// 
+// #include <R.h>
+// #include <Rinternals.h>
+// #include "statsR.h"
+// #ifdef ENABLE_NLS
+// #include <libintl.h>
+// #define _(String) dgettext ("stats", String)
+// #else
+// #define _(String) (String)
+// #endif
+// 
+// SEXP LogLin(SEXP dtab, SEXP conf, SEXP table, SEXP start, 
+//             SEXP snmar, SEXP eps, SEXP iter) 
+// {
+//     int nvar = length(dtab), 
+//         ncon = ncols(conf), 
+//         ntab = length(table),
+//         nmar = asInteger(snmar), 
+//         maxit = asInteger(iter), 
+//         nlast, ifault;
+//     double maxdev = asReal(eps);
+//     SEXP fit = PROTECT(TYPEOF(start) == REALSXP ? duplicate(start) :
+//                            coerceVector(start, REALSXP)),
+//                            locmar = PROTECT(allocVector(INTSXP, ncon)),
+//                            marg = PROTECT(allocVector(REALSXP, nmar)),
+//                            u = PROTECT(allocVector(REALSXP, ntab)),
+//                            dev = PROTECT(allocVector(REALSXP, maxit));
+//     dtab = PROTECT(coerceVector(dtab, INTSXP));
+//     conf = PROTECT(coerceVector(conf, INTSXP));
+//     table = PROTECT(coerceVector(table, REALSXP));
+//     loglin(nvar, INTEGER(dtab), ncon, INTEGER(conf), ntab,
+//            REAL(table), REAL(fit), INTEGER(locmar), nmar, REAL(marg),
+//            ntab, REAL(u), maxdev, maxit, REAL(dev), &nlast, &ifault);
+//     switch(ifault) {
+//     case 1:
+//     case 2:
+//         error(_("this should not happen")); break;
+//     case 3:
+//         warning(_("algorithm did not converge")); break;
+//     case 4:
+//         error(_("incorrect specification of 'table' or 'start'")); break;
+//     default: 
+//         break;
+//     }
+//     
+//     SEXP ans = PROTECT(allocVector(VECSXP, 3)), nm;
+//     SET_VECTOR_ELT(ans, 0, fit);
+//     SET_VECTOR_ELT(ans, 1, dev);
+//     SET_VECTOR_ELT(ans, 2, ScalarInteger(nlast));
+//     nm = allocVector(STRSXP, 3);
+//     setAttrib(ans, R_NamesSymbol, nm);
+//     SET_STRING_ELT(nm, 0, mkChar("fit"));
+//     SET_STRING_ELT(nm, 1, mkChar("dev"));
+//     SET_STRING_ELT(nm, 2, mkChar("nlast"));
+//     UNPROTECT(9);
+//     return ans;
+// }
+
+
+
+
+
+
 // return the matching pattern between two words at each position, 0 for matching, 1 for not matching.
 // for example, for 3-gram, bit = 000, 001, 010 ... 111 eg. 0-7
 int match_bit2(const std::vector<unsigned int> &tokens1, 
@@ -128,6 +516,7 @@ void estimates(std::size_t i,
               DoubleParams &chi2,
               DoubleParams &gensim,
               DoubleParams &lfmd,
+              std::vector<double> &counts_bit,         // output counts
               const String &method,
               const int &count_min,
               const double nseqs,
@@ -136,7 +525,8 @@ void estimates(std::size_t i,
     std::size_t n = seqs_np[i].size(); //n=2:5, seqs
     if (n == 1) return; // ignore single words
     if (cs_np[i] < count_min) return;
-    std::vector<double> counts_bit(std::pow(2, n), smoothing);// use 1/2 as smoothing
+    //output counts
+    //std::vector<double> counts_bit(std::pow(2, n), smoothing);// use 1/2 as smoothing
     for (std::size_t j = 0; j < seqs.size(); j++) {
         //if (i == j) continue; // do not compare with itself
  
@@ -172,7 +562,7 @@ void estimates(std::size_t i,
     }
 
     double mc_product = 1;
-    for (int k = 0; k < n; k++){
+    for (std::size_t k = 0; k < n; k++){
         mc_product *= mc[k];
     }
     
@@ -267,37 +657,38 @@ void estimates(std::size_t i,
     }
 }
 
-struct estimates_mt : public Worker{
-    VecNgrams &seqs_np;
-    IntParams &cs_np;
-    VecNgrams &seqs;
-    IntParams &cs;
-    DoubleParams &sgma;
-    DoubleParams &lmda;
-    DoubleParams &dice;
-    DoubleParams &pmi;
-    DoubleParams &logratio;
-    DoubleParams &chi2;
-    DoubleParams &gensim;
-    DoubleParams &lfmd;
-    const String &method;
-    const unsigned int &count_min;
-    const double nseqs;
-    const double smoothing;
-
-    // Constructor
-    estimates_mt(VecNgrams &seqs_np_, IntParams &cs_np_, VecNgrams &seqs_, IntParams &cs_, DoubleParams &ss_, DoubleParams &ls_, DoubleParams &dice_, 
-                 DoubleParams &pmi_, DoubleParams &logratio_, DoubleParams &chi2_, DoubleParams &gensim_, DoubleParams &lfmd_, const String &method,
-                 const unsigned int &count_min_, const double nseqs_, const double smoothing_):
-        seqs_np(seqs_np_), cs_np(cs_np_), seqs(seqs_), cs(cs_), sgma(ss_), lmda(ls_), dice(dice_), pmi(pmi_), logratio(logratio_), chi2(chi2_), 
-        method(method), gensim(gensim_), lfmd(lfmd_), count_min(count_min_), nseqs(nseqs_), smoothing(smoothing_){}
-    
-    void operator()(std::size_t begin, std::size_t end){
-        for (std::size_t i = begin; i < end; i++) {
-                estimates(i, seqs_np, cs_np, seqs, cs, sgma, lmda, dice, pmi, logratio, chi2, gensim, lfmd, method, count_min, nseqs, smoothing);
-        }
-    }
-};
+// diable templately for output counts
+// struct estimates_mt : public Worker{
+//     VecNgrams &seqs_np;
+//     IntParams &cs_np;
+//     VecNgrams &seqs;
+//     IntParams &cs;
+//     DoubleParams &sgma;
+//     DoubleParams &lmda;
+//     DoubleParams &dice;
+//     DoubleParams &pmi;
+//     DoubleParams &logratio;
+//     DoubleParams &chi2;
+//     DoubleParams &gensim;
+//     DoubleParams &lfmd;
+//     const String &method;
+//     const unsigned int &count_min;
+//     const double nseqs;
+//     const double smoothing;
+// 
+//     // Constructor
+//     estimates_mt(VecNgrams &seqs_np_, IntParams &cs_np_, VecNgrams &seqs_, IntParams &cs_, DoubleParams &ss_, DoubleParams &ls_, DoubleParams &dice_, 
+//                  DoubleParams &pmi_, DoubleParams &logratio_, DoubleParams &chi2_, DoubleParams &gensim_, DoubleParams &lfmd_, const String &method,
+//                  const unsigned int &count_min_, const double nseqs_, const double smoothing_):
+//         seqs_np(seqs_np_), cs_np(cs_np_), seqs(seqs_), cs(cs_), sgma(ss_), lmda(ls_), dice(dice_), pmi(pmi_), logratio(logratio_), chi2(chi2_), 
+//         gensim(gensim_), lfmd(lfmd_), method(method), count_min(count_min_), nseqs(nseqs_), smoothing(smoothing_){}
+//     
+//     void operator()(std::size_t begin, std::size_t end){
+//         for (std::size_t i = begin; i < end; i++) {
+//                 estimates(i, seqs_np, cs_np, seqs, cs, sgma, lmda, dice, pmi, logratio, chi2, gensim, lfmd, method, count_min, nseqs, smoothing);
+//         }
+//     }
+// };
 
 /* 
 * This funciton estimate the strength of association between specified words 
@@ -355,6 +746,10 @@ DataFrame qatd_cpp_sequences(const List &texts_,
     VecNgrams seqs_all;
     seqs_all.reserve(len_coe);
     
+    //output oberved counting
+    std::vector<std::string> ob_all;
+    ob_all.reserve(len_coe);
+    
     for(unsigned int m = 0; m < sizes.size(); m++){
         unsigned int mw_len = sizes[m];
         // Collect all sequences of specified words
@@ -379,6 +774,9 @@ DataFrame qatd_cpp_sequences(const List &texts_,
         seqs_np.reserve(len);
         cs_np.reserve(len);
         cs.reserve(len);
+        
+       
+
         double total_counts = 0.0;
         std::size_t len_noPadding = 0;
         for (auto it = counts_seq.begin(); it != counts_seq.end(); ++it) {
@@ -396,6 +794,10 @@ DataFrame qatd_cpp_sequences(const List &texts_,
             }
         }
         
+        //output counts;
+        std::vector<std::string> ob_n(len_noPadding);
+        
+        
         // adjust total_counts of MW 
         total_counts += 4 * smoothing;
         
@@ -409,14 +811,27 @@ DataFrame qatd_cpp_sequences(const List &texts_,
         DoubleParams gensim(len_noPadding);
         DoubleParams lfmd(len_noPadding);
         //dev::start_timer("Estimate", timer);
-#if QUANTEDA_USE_TBB
-        estimates_mt estimate_mt(seqs_np, cs_np, seqs, cs, sgma, lmda, dice, pmi, logratio, chi2, gensim, lfmd, method, count_min, total_counts, smoothing);
-        parallelFor(0, seqs_np.size(), estimate_mt);
-#else
+//#if QUANTEDA_USE_TBB
+//        estimates_mt estimate_mt(seqs_np, cs_np, seqs, cs, sgma, lmda, dice, pmi, logratio, chi2, gensim, lfmd, method, count_min, total_counts, smoothing);
+//        parallelFor(0, seqs_np.size(), estimate_mt);
+//#else
         for (std::size_t i = 0; i < seqs_np.size(); i++) {
-                estimates(i, seqs_np, cs_np, seqs, cs, sgma, lmda, dice, pmi, logratio, chi2, gensim, lfmd, method, count_min, total_counts, smoothing);
+            std::vector<double> count_bit(std::pow(2, mw_len), smoothing);
+                estimates(i, seqs_np, cs_np, seqs, cs, sgma, lmda, dice, pmi, logratio, chi2, gensim, lfmd, count_bit, method, count_min, total_counts, smoothing);
+                
+                // Convert sequences from integer to character
+                std::ostringstream out;
+                out<<std::setprecision(1)<<std::fixed<<std::showpoint<< count_bit[0];
+                std::string this_count = out.str();
+                for (std::size_t j = 1; j < count_bit.size(); j++) {
+                    std::ostringstream out;
+                    out<<std::setprecision(1)<<std::fixed<<std::showpoint<< count_bit[j];
+                    this_count = this_count + '_' + out.str();
+                }
+                ob_n[i] = this_count;
+                ///end of out
         }
-#endif
+//#endif
         //dev::stop_timer("Estimate", timer);
         sgma_all.insert( sgma_all.end(), sgma.begin(), sgma.end() );
         lmda_all.insert( lmda_all.end(), lmda.begin(), lmda.end() );
@@ -426,6 +841,10 @@ DataFrame qatd_cpp_sequences(const List &texts_,
         chi2_all.insert( chi2_all.end(), chi2.begin(), chi2.end() );
         gensim_all.insert( gensim_all.end(), gensim.begin(), gensim.end() );
         lfmd_all.insert( lfmd_all.end(), lfmd.begin(), lfmd.end() );
+        
+        //output counts
+        ob_all.insert( ob_all.end(), ob_n.begin(), ob_n.end() );
+        
     }
     
     // Convert sequences from integer to character
@@ -440,11 +859,12 @@ DataFrame qatd_cpp_sequences(const List &texts_,
                                           _[method] = as<NumericVector>(wrap(lmda_all)),
                                           _["sigma"] = as<NumericVector>(wrap(sgma_all)),
                                           _["dice"] = as<NumericVector>(wrap(dice_all)),
+                                          _["gensim"] = as<NumericVector>(wrap(gensim_all)),
                                           _["pmi"] = as<NumericVector>(wrap(pmi_all)),
                                           _["G2"] = as<NumericVector>(wrap(logratio_all)),
                                           _["chi2"] = as<NumericVector>(wrap(chi2_all)),
-                                          _["gensim"] = as<NumericVector>(wrap(gensim_all)),
                                           _["LFMD"] = as<NumericVector>(wrap(lfmd_all)),
+                                          _["observed_counts"] = ob_all,
                                           _["stringsAsFactors"] = false);
     return output_;
 }
