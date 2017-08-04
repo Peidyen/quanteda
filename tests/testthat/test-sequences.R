@@ -169,7 +169,7 @@ test_that("test that argument 'method'", {
 #     
 # })
 
-test_that("[ function",{
+test_that("lambda & [ function : against Jouni's implementation",{
     toks <- tokens('E E G F a b c E E G G f E E f f G G')
     toks_capital <- tokens_select(toks, "^[A-Z]$", valuetype="regex", 
                                   case_insensitive = FALSE, padding = TRUE)
@@ -186,6 +186,33 @@ test_that("[ function",{
     expect_equal(class(a_seq), c("sequences", 'data.frame'))
 })
 
+test_that("gensim & LFMD : against Jouni's implementation",{
+    toks <- tokens('E E G F a b c E E G G f E E f f G G')
+    toks_capital <- tokens_select(toks, "^[A-Z]$", valuetype="regex", 
+                                  case_insensitive = FALSE, padding = TRUE)
+    seqs <- sequences(toks_capital, min_count = 1)
+    
+    #call Jouni's implementation to get the indivial counting
+    tt <- as.character(toks_capital)
+    test2 <- MWEcounts(c("G", "F"), tt)
+    test2_stat <- suppressWarnings(MWEstatistics(test2))
+
+    smoothing <- 0.5
+    test2_stat[9] <- test2_stat[9] + smoothing * 4
+    test2_stat[11] <- test2_stat[11] + smoothing
+    test2_stat[12] <- test2_stat[12] + smoothing
+    test2_stat[13] <- test2_stat[13] + smoothing
+    marginal_1 <- test2_stat[11] + test2_stat[13] 
+    marginal_2 <- test2_stat[12] + test2_stat[13]
+    test2_gensim <- (test2_stat[13] - 1) * test2_stat[9]  / (marginal_1 * marginal_2)
+    test2_LFMD <- log2(test2_stat[13] * test2_stat[13] / marginal_1 / marginal_2) + log2(test2_stat[13] / test2_stat[9]) 
+    
+    
+    expect_equal(seqs[1]$collocation, 'G F')
+    expect_equal(seqs$gensim[1], test2_gensim)
+    expect_equal(seqs$LFMD[1], test2_LFMD)
+    
+})
 test_that("is.sequences function",{
     toks <- tokens('E E a b c E E G G f E E f f G G')
     toks <- tokens_select(toks, "^[A-Z]$", valuetype="regex", 
